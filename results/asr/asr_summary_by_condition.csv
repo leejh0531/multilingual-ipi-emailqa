@@ -1,0 +1,5 @@
+model,defense,overall_asr,success,n,source_file
+Llama-3.2-3B-Instruct,off,0.320,1064,3321,Llama_instuct_no_defence.txt
+Llama-3.2-3B-Instruct,on,0.424,1409,3321,LLama 3.2 3B-Instruct.txt
+Qwen2.5-3B-Instruct,off,0.210,699,3321,Qwen_insturct_no_defence.txt
+Qwen2.5-3B-Instruct,on,0.254,842,3321,Qwen2.5_3B_instruct.txt

@@ -1,0 +1,13 @@
+model,defense,axis,value,asr,success,n,source_file
+Llama-3.2-3B-Instruct,off,injection_lang,en,0.307,340,1107,Llama_instuct_no_defence.txt
+Llama-3.2-3B-Instruct,off,injection_lang,ja,0.336,372,1107,Llama_instuct_no_defence.txt
+Llama-3.2-3B-Instruct,off,injection_lang,bn,0.318,352,1107,Llama_instuct_no_defence.txt
+Llama-3.2-3B-Instruct,on,injection_lang,bn,0.415,459,1107,LLama 3.2 3B-Instruct.txt
+Llama-3.2-3B-Instruct,on,injection_lang,en,0.403,446,1107,LLama 3.2 3B-Instruct.txt
+Llama-3.2-3B-Instruct,on,injection_lang,ja,0.455,504,1107,LLama 3.2 3B-Instruct.txt
+Qwen2.5-3B-Instruct,off,injection_lang,en,0.037,41,1107,Qwen_insturct_no_defence.txt
+Qwen2.5-3B-Instruct,off,injection_lang,ja,0.443,490,1107,Qwen_insturct_no_defence.txt
+Qwen2.5-3B-Instruct,off,injection_lang,bn,0.152,168,1107,Qwen_insturct_no_defence.txt
+Qwen2.5-3B-Instruct,on,injection_lang,bn,0.201,222,1107,Qwen2.5_3B_instruct.txt
+Qwen2.5-3B-Instruct,on,injection_lang,en,0.130,144,1107,Qwen2.5_3B_instruct.txt
+Qwen2.5-3B-Instruct,on,injection_lang,ja,0.430,476,1107,Qwen2.5_3B_instruct.txt

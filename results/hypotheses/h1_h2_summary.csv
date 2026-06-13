@@ -1,0 +1,5 @@
+model,defense,h1_condition_baseline,h1_condition_test,h1_asr_baseline,h1_asr_test,h1_delta,h1_supported,h2_condition_baseline,h2_condition_test,h2_asr_baseline,h2_asr_test,h2_delta,h2_supported,source
+Llama-3.2-3B-Instruct,off,inj<=qa,inj>qa,0.341,0.279,-0.062,no,inj!=qa,inj=qa,0.298,0.365,+0.067,yes,graduation_report.pdf Appendix A.3 Table 4
+Llama-3.2-3B-Instruct,on,inj<=qa,inj>qa,0.447,0.379,-0.069,no,inj!=qa,inj=qa,0.419,0.435,+0.017,yes,graduation_report.pdf Appendix A.3 Table 4
+Qwen2.5-3B-Instruct,off,inj<=qa,inj>qa,0.207,0.218,+0.011,yes,inj!=qa,inj=qa,0.111,0.409,+0.298,yes,graduation_report.pdf Appendix A.3 Table 4
+Qwen2.5-3B-Instruct,on,inj<=qa,inj>qa,0.188,0.384,+0.196,yes,inj!=qa,inj=qa,0.192,0.377,+0.185,yes,graduation_report.pdf Appendix A.3 Table 4

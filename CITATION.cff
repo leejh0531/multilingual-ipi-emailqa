@@ -1,0 +1,9 @@
+cff-version: 1.2.0
+title: "Multilingual Indirect Prompt Injection Evaluation on EmailQA"
+message: "If you use this code, please cite the corresponding thesis or NLP 2026 paper when available."
+type: software
+authors:
+  - family-names: Lee
+    given-names: Junghoon
+year: 2026
+license: MIT

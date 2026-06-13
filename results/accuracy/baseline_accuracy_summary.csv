@@ -1,0 +1,7 @@
+model,lang,known_accuracy,unknown_accuracy,source
+Llama-3.2-3B-Instruct,en,0.829,0.153,graduation_report.pdf Appendix A.1 Table 2
+Llama-3.2-3B-Instruct,ja,0.837,0.175,graduation_report.pdf Appendix A.1 Table 2
+Llama-3.2-3B-Instruct,bn,0.805,0.136,graduation_report.pdf Appendix A.1 Table 2
+Qwen2.5-3B-Instruct,en,0.780,0.203,graduation_report.pdf Appendix A.1 Table 2
+Qwen2.5-3B-Instruct,ja,0.814,0.596,graduation_report.pdf Appendix A.1 Table 2
+Qwen2.5-3B-Instruct,bn,0.829,0.136,graduation_report.pdf Appendix A.1 Table 2

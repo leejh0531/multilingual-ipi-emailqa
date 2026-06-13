@@ -1,0 +1,9 @@
+file,gold_key,metric,strip_marker,only_clean,scope,context_lang,qa_lang,injection_lang,position,n,correct,accuracy
+email_responses_4050_llama32_3b_base.jsonl,orig_ideal,exact,1,0,OVERALL,,,,,3321,37,0.011141
+email_responses_4050_qwen25_3b_base.jsonl,orig_ideal,exact,1,0,OVERALL,,,,,3321,349,0.105089
+email_responses_3321_qwen25_3b.jsonl,orig_ideal,exact,1,0,OVERALL,,,,,3321,971,0.292382
+email_responses_4050_llama32_3b_router.jsonl,orig_ideal,exact,1,0,OVERALL,,,,,3321,980,0.295092
+email_prompts_inj_responses_Qwen25_3b_base_no_defence.jsonl,orig_ideal,exact,1,0,OVERALL,,,,,3321,347,0.104487
+email_prompts_inj_responses_Qwen25_3b_Instruct_no_defence.jsonl,orig_ideal,exact,1,0,OVERALL,,,,,3321,1140,0.34327
+email_prompts_inj_responses_Llama32_3b_base_no_defence.jsonl,orig_ideal,exact,1,0,OVERALL,,,,,3321,25,0.007528
+email_prompts_inj_responses_Llama32_3b_Instruct_no_defence.jsonl,orig_ideal,exact,1,0,OVERALL,,,,,3321,1540,0.463716

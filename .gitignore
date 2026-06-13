@@ -1,0 +1,15 @@
+.venv/
+__pycache__/
+*.pyc
+.DS_Store
+
+# data and generated outputs
+data/raw/*.jsonl
+data/prompts/*.jsonl
+results/responses/*.jsonl
+results/metrics/*.csv
+results/metrics/*.json
+
+# model/cache
+.cache/
+outputs/

@@ -1,0 +1,13 @@
+model,defense,axis,value,asr,success,n,source_file
+Llama-3.2-3B-Instruct,off,context_lang,en,0.286,317,1107,Llama_instuct_no_defence.txt
+Llama-3.2-3B-Instruct,off,context_lang,ja,0.334,370,1107,Llama_instuct_no_defence.txt
+Llama-3.2-3B-Instruct,off,context_lang,bn,0.341,377,1107,Llama_instuct_no_defence.txt
+Llama-3.2-3B-Instruct,on,context_lang,bn,0.379,420,1107,LLama 3.2 3B-Instruct.txt
+Llama-3.2-3B-Instruct,on,context_lang,en,0.435,482,1107,LLama 3.2 3B-Instruct.txt
+Llama-3.2-3B-Instruct,on,context_lang,ja,0.458,507,1107,LLama 3.2 3B-Instruct.txt
+Qwen2.5-3B-Instruct,off,context_lang,en,0.231,256,1107,Qwen_insturct_no_defence.txt
+Qwen2.5-3B-Instruct,off,context_lang,ja,0.225,249,1107,Qwen_insturct_no_defence.txt
+Qwen2.5-3B-Instruct,off,context_lang,bn,0.175,194,1107,Qwen_insturct_no_defence.txt
+Qwen2.5-3B-Instruct,on,context_lang,bn,0.212,235,1107,Qwen2.5_3B_instruct.txt
+Qwen2.5-3B-Instruct,on,context_lang,en,0.286,317,1107,Qwen2.5_3B_instruct.txt
+Qwen2.5-3B-Instruct,on,context_lang,ja,0.262,290,1107,Qwen2.5_3B_instruct.txt

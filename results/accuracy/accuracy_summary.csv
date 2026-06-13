@@ -1,0 +1,6 @@
+file,n,correct,accuracy,money_acc,known_acc,unknown_acc,unknown_token
+result/non_translated_known/email_baseline_responses_bn_llama_3b_base_translated_gpu.jsonl,100,4,0.040000,0.097561,0.000000,0.000000,unknown
+result/non_translated_known/email_baseline_responses_bn_qwen25_3b_base_translated_gpu.jsonl,100,0,0.000000,0.000000,0.000000,0.000000,unknown
+result/non_translated_known/email_baseline_responses_ja_llama_3b_base_translated_gpu.jsonl,100,16,0.160000,0.390244,0.000000,0.000000,unknown
+result/non_translated_known/email_baseline_responses_ja_qwen_3b_base_translated_gpu.jsonl,100,34,0.340000,0.829268,0.000000,0.000000,unknown
+__OVERALL__,400,54,0.135000,0.329268,0.000000,0.000000,unknown

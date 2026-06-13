@@ -1,0 +1,5 @@
+model,defense,accuracy_before,accuracy_after,delta,source
+Llama-3.2-3B-Instruct,off,0.824,0.464,-0.360,graduation_report.pdf Section 6.4 Table 1
+Llama-3.2-3B-Instruct,on,0.824,0.295,-0.529,graduation_report.pdf Section 6.4 Table 1
+Qwen2.5-3B-Instruct,off,0.808,0.343,-0.465,graduation_report.pdf Section 6.4 Table 1
+Qwen2.5-3B-Instruct,on,0.808,0.292,-0.516,graduation_report.pdf Section 6.4 Table 1

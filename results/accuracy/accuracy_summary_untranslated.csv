@@ -1,0 +1,7 @@
+file,n,correct,accuracy,money_acc,known_acc,unknown_acc,unknown_token
+result/translated_known/email_baseline_responses_bn_llama_3b_base_gpu.jsonl,100,1,0.010000,0.024390,0.000000,0.000000,অজানা
+result/translated_known/email_baseline_responses_bn_qwen25_3b_base_gpu.jsonl,100,0,0.000000,0.000000,0.000000,0.000000,অজানা
+result/translated_known/email_baseline_responses_en_llama_3b_base_gpu.jsonl,100,33,0.330000,0.804878,0.000000,0.000000,unknown
+result/translated_known/email_baseline_responses_ja_llama_3b_base_gpu.jsonl,100,17,0.170000,0.395349,0.000000,0.000000,不明
+result/translated_known/email_baseline_responses_ja_qwen25_3b_base_gpu.jsonl,100,36,0.360000,0.837209,0.000000,0.000000,不明
+__OVERALL__,500,87,0.174000,0.416268,0.000000,0.000000,অজানা
