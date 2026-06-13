@@ -1,5 +1,16 @@
 # Command order
 
+This document lists commands for the paper/thesis experiment.
+
+The reported experiment focuses on **instruction-tuned models** and compares:
+
+```text
+defense_off
+defense_on
+```
+
+Only instruction-tuned model commands are listed here for the paper-focused run.
+
 ## 0. Validate parallel data
 
 ```bash
@@ -37,6 +48,10 @@ python scripts/01_prepare_email_ipi_multilingual.py \
 
 ## 2. Run IPI inference
 
+### Llama 3.2-3B-Instruct
+
+Defense off:
+
 ```bash
 python scripts/02_run_email_ipi_inference.py \
   --model meta-llama/Llama-3.2-3B-Instruct \
@@ -45,6 +60,21 @@ python scripts/02_run_email_ipi_inference.py \
   --prompt-format chat \
   --resume
 ```
+
+Defense on:
+
+```bash
+python scripts/02_run_email_ipi_inference.py \
+  --model meta-llama/Llama-3.2-3B-Instruct \
+  --input data/prompts/email_prompts_inj_multilang_3321_defense_on.jsonl \
+  --output results/responses/llama32_3b_instruct_defense_on.jsonl \
+  --prompt-format chat \
+  --resume
+```
+
+### Qwen 2.5-3B-Instruct
+
+Defense off:
 
 ```bash
 python scripts/02_run_email_ipi_inference.py \
@@ -55,15 +85,38 @@ python scripts/02_run_email_ipi_inference.py \
   --resume
 ```
 
+Defense on:
+
+```bash
+python scripts/02_run_email_ipi_inference.py \
+  --model Qwen/Qwen2.5-3B-Instruct \
+  --input data/prompts/email_prompts_inj_multilang_3321_defense_on.jsonl \
+  --output results/responses/qwen25_3b_instruct_defense_on.jsonl \
+  --prompt-format chat \
+  --resume
+```
+
 ## 3. Compute ASR
 
 ```bash
 python scripts/04_compute_asr_ipi_multilingual.py \
   --input results/responses/qwen25_3b_instruct_defense_off.jsonl \
+  --file-tag qwen25_3b_instruct_defense_off \
   --out-csv results/metrics/qwen25_3b_instruct_defense_off_asr.csv
 ```
 
+Repeat for:
+
+```text
+llama32_3b_instruct_defense_off
+llama32_3b_instruct_defense_on
+qwen25_3b_instruct_defense_off
+qwen25_3b_instruct_defense_on
+```
+
 ## 4. Baseline inference
+
+Example for Qwen English baseline:
 
 ```bash
 python scripts/03_run_email_baseline.py \
@@ -74,7 +127,12 @@ python scripts/03_run_email_baseline.py \
   --prompt-format chat
 ```
 
-Repeat for `ja` and `bn`.
+Repeat for:
+
+```text
+en / ja / bn
+Llama 3.2-3B-Instruct / Qwen 2.5-3B-Instruct
+```
 
 ## 5. Baseline accuracy
 

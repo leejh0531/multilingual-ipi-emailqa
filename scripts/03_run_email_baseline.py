@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Run baseline EmailQA inference without injection."""
+"""Run chat-style baseline EmailQA inference without injection.
+
+This baseline runner is intended for instruction-tuned models used in the
+paper/thesis experiment.
+"""
 
 from __future__ import annotations
 
@@ -59,23 +63,17 @@ def user_prompt(context: str, question: str, lang: str) -> str:
     raise ValueError(f"unsupported lang: {lang}")
 
 
-def decide_prompt_format(model_name: str, requested: str) -> str:
-    if requested != "auto":
-        return requested
-    return "chat" if "instruct" in model_name.lower() or "chat" in model_name.lower() else "plain"
-
-
-def format_plain(system: str, user: str) -> str:
-    return f"### System\n{system}\n\n### User\n{user}\n\n### Assistant\n"
-
-
-def format_chat(tokenizer, system: str, user: str) -> str:
-    if not hasattr(tokenizer, "apply_chat_template") or tokenizer.chat_template is None:
-        return format_plain(system, user)
-    return tokenizer.apply_chat_template(
-        [{"role": "system", "content": system}, {"role": "user", "content": user}],
-        tokenize=False,
-        add_generation_prompt=True,
+def format_chat_prompt(tokenizer, system: str, user: str) -> str:
+    messages = [
+        {"role": "system", "content": system},
+        {"role": "user", "content": user},
+    ]
+    if hasattr(tokenizer, "apply_chat_template") and tokenizer.chat_template is not None:
+        return tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+    return (
+        "<|system|>\n" + system.strip() + "\n"
+        "<|user|>\n" + user.strip() + "\n"
+        "<|assistant|>\n"
     )
 
 
@@ -91,11 +89,16 @@ def load_model(model_name: str, load_in_4bit: bool):
         try:
             from transformers import BitsAndBytesConfig
 
-            config = BitsAndBytesConfig(load_in_4bit=True, bnb_4bit_compute_dtype=torch.float16, bnb_4bit_use_double_quant=True, bnb_4bit_quant_type="nf4")
+            config = BitsAndBytesConfig(
+                load_in_4bit=True,
+                bnb_4bit_compute_dtype=torch.float16,
+                bnb_4bit_use_double_quant=True,
+                bnb_4bit_quant_type="nf4",
+            )
             model = AutoModelForCausalLM.from_pretrained(model_name, quantization_config=config, device_map="auto")
             print("[baseline] loaded in 4-bit")
         except Exception as e:
-            print(f"[baseline] 4-bit failed: {e}")
+            print(f"[baseline] 4-bit loading failed: {e}")
     if model is None:
         if device == "cuda":
             model = AutoModelForCausalLM.from_pretrained(model_name, torch_dtype=torch.float16, device_map="auto")
@@ -106,12 +109,23 @@ def load_model(model_name: str, load_in_4bit: bool):
     return tokenizer, model, device
 
 
-def generate_one(tokenizer, model, device: str, system: str, user: str, prompt_format: str, max_new_tokens: int, max_input_tokens: int | None) -> str:
-    prompt = format_chat(tokenizer, system, user) if prompt_format == "chat" else format_plain(system, user)
-    inputs = tokenizer(prompt, return_tensors="pt", truncation=max_input_tokens is not None, max_length=max_input_tokens)
+def generate_one(tokenizer, model, device: str, system: str, user: str, max_new_tokens: int, max_input_tokens: int | None) -> str:
+    prompt = format_chat_prompt(tokenizer, system, user)
+    inputs = tokenizer(
+        prompt,
+        return_tensors="pt",
+        truncation=max_input_tokens is not None,
+        max_length=max_input_tokens,
+    )
     inputs = {k: v.to(device) for k, v in inputs.items()}
     with torch.no_grad():
-        out = model.generate(**inputs, max_new_tokens=max_new_tokens, do_sample=False, eos_token_id=tokenizer.eos_token_id, pad_token_id=tokenizer.pad_token_id)
+        out = model.generate(
+            **inputs,
+            max_new_tokens=max_new_tokens,
+            do_sample=False,
+            eos_token_id=tokenizer.eos_token_id,
+            pad_token_id=tokenizer.pad_token_id,
+        )
     gen = out[0, inputs["input_ids"].shape[1] :]
     return tokenizer.decode(gen, skip_special_tokens=True).strip()
 
@@ -143,7 +157,7 @@ def main() -> None:
     p.add_argument("--model", required=True)
     p.add_argument("--input", type=Path, required=True)
     p.add_argument("--output", type=Path, required=True)
-    p.add_argument("--prompt-format", choices=["auto", "plain", "chat"], default="auto")
+    p.add_argument("--prompt-format", choices=["chat"], default="chat", help="Paper setting uses chat formatting for instruction-tuned models.")
     p.add_argument("--load-in-4bit", action="store_true")
     p.add_argument("--max-new-tokens", type=int, default=64)
     p.add_argument("--max-input-tokens", type=int, default=None)
@@ -155,7 +169,6 @@ def main() -> None:
     if args.limit is not None:
         rows = rows[: args.limit]
     tokenizer, model, device = load_model(args.model, args.load_in_4bit)
-    fmt = decide_prompt_format(args.model, args.prompt_format)
     sys = system_prompt(args.lang)
 
     args.output.parent.mkdir(parents=True, exist_ok=True)
@@ -167,8 +180,8 @@ def main() -> None:
             if args.resume and item_key(base) in done:
                 continue
             usr = user_prompt(str(rec.get("context", "")), str(rec.get("question", "")), args.lang)
-            resp = generate_one(tokenizer, model, device, sys, usr, fmt, args.max_new_tokens, args.max_input_tokens)
-            obj = {**base, "response": resp, "model": args.model, "prompt_format": fmt}
+            resp = generate_one(tokenizer, model, device, sys, usr, args.max_new_tokens, args.max_input_tokens)
+            obj = {**base, "response": resp, "model": args.model, "prompt_format": "chat"}
             out.write(json.dumps(obj, ensure_ascii=False) + "\n")
             out.flush()
 

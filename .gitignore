@@ -1,15 +1,37 @@
+# Python
 .venv/
+venv/
 __pycache__/
-*.pyc
+*.py[cod]
+.ipynb_checkpoints/
+
+# OS/editor
 .DS_Store
+.vscode/
+.idea/
 
-# data and generated outputs
-data/raw/*.jsonl
-data/prompts/*.jsonl
-results/responses/*.jsonl
-results/metrics/*.csv
-results/metrics/*.json
+# Raw and generated data: keep local only
+data/raw/
+data/prompts/
+data/processed/
+data/responses/
+data/**/*.jsonl
+benchmark/
 
-# model/cache
-.cache/
+# Model outputs and generated metrics
 outputs/
+responses/
+results/responses/
+results/metrics/
+*.jsonl
+
+# Large model/cache files
+.cache/
+hf_cache/
+*.bin
+*.safetensors
+
+# Keep lightweight docs/placeholders
+!data/README.md
+!data/.gitkeep
+!examples/*.jsonl
