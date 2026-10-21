@@ -8,24 +8,19 @@ paper/thesis experiment.
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 from pathlib import Path
 from typing import Any
 
-import torch
-from tqdm import tqdm
-from transformers import AutoModelForCausalLM, AutoTokenizer
+from evaluation import read_records
+from run_state import item_key as content_key, run_config, unique_keys, check_resume, open_output
+
+
+REQUIRED_FIELDS = ("context", "question", "ideal")
 
 
 def read_jsonl(path: Path) -> list[dict[str, Any]]:
-    rows: list[dict[str, Any]] = []
-    with path.open("r", encoding="utf-8") as f:
-        for line in f:
-            line = line.strip()
-            if line:
-                rows.append(json.loads(line))
-    return rows
+    return read_records(path, REQUIRED_FIELDS)
 
 
 def system_prompt(lang: str) -> str:
@@ -70,20 +65,20 @@ def format_chat_prompt(tokenizer, system: str, user: str) -> str:
     ]
     if hasattr(tokenizer, "apply_chat_template") and tokenizer.chat_template is not None:
         return tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
-    return (
-        "<|system|>\n" + system.strip() + "\n"
-        "<|user|>\n" + user.strip() + "\n"
-        "<|assistant|>\n"
-    )
+    raise ValueError("The selected tokenizer has no chat template; supply an instruction model with a template.")
 
 
 def load_model(model_name: str, load_in_4bit: bool):
+    import torch
+    from transformers import AutoModelForCausalLM, AutoTokenizer
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print(f"[baseline] device={device} model={model_name}")
     tokenizer = AutoTokenizer.from_pretrained(model_name, use_fast=True)
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
 
+    if load_in_4bit and device != "cuda":
+        raise ValueError("--load-in-4bit requires CUDA in this runner; omit it for CPU execution")
     model = None
     if load_in_4bit and device == "cuda":
         try:
@@ -98,7 +93,8 @@ def load_model(model_name: str, load_in_4bit: bool):
             model = AutoModelForCausalLM.from_pretrained(model_name, quantization_config=config, device_map="auto")
             print("[baseline] loaded in 4-bit")
         except Exception as e:
-            print(f"[baseline] 4-bit loading failed: {e}")
+            raise RuntimeError("4-bit loading failed; fix the environment or start a separate run without --load-in-4bit") from e
+
     if model is None:
         if device == "cuda":
             model = AutoModelForCausalLM.from_pretrained(model_name, torch_dtype=torch.float16, device_map="auto")
@@ -110,6 +106,8 @@ def load_model(model_name: str, load_in_4bit: bool):
 
 
 def generate_one(tokenizer, model, device: str, system: str, user: str, max_new_tokens: int, max_input_tokens: int | None) -> str:
+    import torch
+
     prompt = format_chat_prompt(tokenizer, system, user)
     inputs = tokenizer(
         prompt,
@@ -123,7 +121,8 @@ def generate_one(tokenizer, model, device: str, system: str, user: str, max_new_
             **inputs,
             max_new_tokens=max_new_tokens,
             do_sample=False,
-            eos_token_id=tokenizer.eos_token_id,
+            eos_token_id=(model.generation_config.eos_token_id
+                          if model.generation_config.eos_token_id is not None else tokenizer.eos_token_id),
             pad_token_id=tokenizer.pad_token_id,
         )
     gen = out[0, inputs["input_ids"].shape[1] :]
@@ -131,24 +130,7 @@ def generate_one(tokenizer, model, device: str, system: str, user: str, max_new_
 
 
 def item_key(item: dict[str, Any]) -> str:
-    if item.get("id") is not None:
-        return f"id:{item['id']}"
-    raw = str(item.get("context", "")) + "\n" + str(item.get("question", ""))
-    return "sha1:" + hashlib.sha1(raw.encode("utf-8")).hexdigest()
-
-
-def done_keys(path: Path) -> set[str]:
-    done: set[str] = set()
-    if not path.exists():
-        return done
-    with path.open("r", encoding="utf-8") as f:
-        for line in f:
-            try:
-                obj = json.loads(line)
-                done.add(item_key(obj))
-            except Exception:
-                pass
-    return done
+    return content_key(item)
 
 
 def main() -> None:
@@ -162,28 +144,37 @@ def main() -> None:
     p.add_argument("--max-new-tokens", type=int, default=64)
     p.add_argument("--max-input-tokens", type=int, default=None)
     p.add_argument("--resume", action="store_true")
+    p.add_argument("--overwrite", action="store_true", help="Explicitly replace an existing output instead of resuming")
     p.add_argument("--limit", type=int, default=None)
     args = p.parse_args()
+    config = run_config(args, "same_language_baseline")
 
     rows = read_jsonl(args.input)
     if args.limit is not None:
         rows = rows[: args.limit]
+    rows = [{**rec, "id": rec.get("id", idx), "lang": args.lang} for idx, rec in enumerate(rows)]
+    expected = unique_keys(rows)
+    done = check_resume(args.output, config, expected, args.resume, args.overwrite)
+    if done == expected:
+        print(f"All {len(done)} items are already complete: {args.output}")
+        return
     tokenizer, model, device = load_model(args.model, args.load_in_4bit)
     sys = system_prompt(args.lang)
+    from tqdm import tqdm
 
-    args.output.parent.mkdir(parents=True, exist_ok=True)
-    done = done_keys(args.output) if args.resume else set()
-    mode = "a" if args.resume else "w"
-    with args.output.open(mode, encoding="utf-8") as out:
-        for idx, rec in enumerate(tqdm(rows, desc="baseline")):
-            base = {**rec, "id": rec.get("id", idx), "lang": args.lang}
-            if args.resume and item_key(base) in done:
+    with open_output(args.output, args.resume, args.overwrite) as out:
+        for rec in tqdm(rows, desc="baseline"):
+            base = rec
+            key = item_key(base)
+            if key in done:
                 continue
             usr = user_prompt(str(rec.get("context", "")), str(rec.get("question", "")), args.lang)
             resp = generate_one(tokenizer, model, device, sys, usr, args.max_new_tokens, args.max_input_tokens)
-            obj = {**base, "response": resp, "model": args.model, "prompt_format": "chat"}
+            obj = {**base, "response": resp, "model": args.model, "prompt_format": "chat", "run_config": config, "run_key": key,
+                   "loaded_in_4bit": bool(getattr(model, "is_loaded_in_4bit", False))}
             out.write(json.dumps(obj, ensure_ascii=False) + "\n")
             out.flush()
+            done.add(key)
 
     print(f"[baseline] saved={args.output}")
 

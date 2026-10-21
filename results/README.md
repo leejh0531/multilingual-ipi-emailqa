@@ -2,7 +2,7 @@
 
 This directory contains existing aggregate CSVs and figures. It includes main instruction-model summaries and additional accuracy outputs with base-model filenames. The files should not be treated as one uniformly configured evaluation.
 
-The README clarification does not recompute results. The public materials do not document a complete reconciliation of current scripts, historical outputs, and report-derived summaries against the original response logs.
+The code corrections and README clarification do not recompute results. These files are historical snapshots, not outputs of the new strict_v2 defaults. The public materials do not document a complete reconciliation of current scripts, historical outputs, and report-derived summaries against the original response logs.
 
 ## File guide
 
@@ -13,7 +13,7 @@ The README clarification does not recompute results. The public materials do not
 | [asr/asr_by_axis.csv](asr/asr_by_axis.csv) | Summaries by experimental axis |
 | [asr/asr_by_context_lang.csv](asr/asr_by_context_lang.csv), [asr/asr_by_qa_lang.csv](asr/asr_by_qa_lang.csv), [asr/asr_by_injection_lang.csv](asr/asr_by_injection_lang.csv), [asr/asr_by_position.csv](asr/asr_by_position.csv) | Language- and placement-level aggregates |
 | [accuracy/baseline_accuracy_summary.csv](accuracy/baseline_accuracy_summary.csv) | Stored known/unknown baseline summaries; cites a report not included here |
-| [accuracy/accuracy_before_after.csv](accuracy/accuracy_before_after.csv) | Stored before/after summaries; not a fully matched causal comparison under the current workflow |
+| [accuracy/accuracy_before_after.csv](accuracy/accuracy_before_after.csv) | Stored before/after summaries; not a fully matched causal comparison under the historical workflow |
 | [accuracy/accuracy_summary.csv](accuracy/accuracy_summary.csv), [accuracy/accuracy_summary_untranslated.csv](accuracy/accuracy_summary_untranslated.csv) | Additional baseline outputs whose source filenames identify base-model runs; do not pool with the main instruction-model summaries |
 | [accuracy/accuracy_after_injection_summary_raw.csv](accuracy/accuracy_after_injection_summary_raw.csv) | Mixed run summaries, including base-model and instruction-model filenames |
 | [accuracy/accuracy_after_injection_by_combo.csv](accuracy/accuracy_after_injection_by_combo.csv) | Detailed post-injection accuracy outputs; retain run identifiers when analyzing |
@@ -44,11 +44,11 @@ There is no documented end-to-end command that regenerates every curated table a
 ## Interpretation limits
 
 - **Reminder condition:** defense_on adds a short security-policy reminder. The recorded ASR increase should not be generalized to other defenses.
-- **Position:** the current generator puts start/end instructions outside the email delimiters and middle instructions inside. Position and boundary placement are confounded.
-- **Baseline:** current baseline and injection runners differ in language combinations, prompt templates, and default output-token limits. Before/after deltas should not be attributed solely to injection.
-- **Unknown-answer scoring:** current scoring code can accept any response without a detected dollar amount, including an empty response. This is not strict semantic accuracy. Its effect on historical unknown-answer summaries requires checking their original scoring code and logs.
-- **Money scoring:** extracted money strings are compared; equivalent numerical values in different formats can score differently.
-- **Marker stripping:** post-injection scoring with --strip-marker discards the marker and everything after its first occurrence.
+- **Position:** legacy generation puts start/end instructions outside the email and middle inside. Position and boundary placement are confounded. The new default places all three inside; it has not been used to regenerate these tables.
+- **Baseline:** the historical same-language baseline and injection runners differ in language combinations, templates and token limits. New matched controls are available through `--no-injection` in script 01, but the stored comparisons have not been replaced.
+- **Unknown-answer scoring:** the legacy rule accepts responses without dollar amounts, including empty responses. The new strict_v2 rule requires an explicit unknown label. The known-only attack subset does not contain unknown-reference items; effects on historical baseline summaries require the original logs.
+- **Money scoring:** legacy scoring compares extracted money strings. New strict_v2 scoring compares numeric decimal values. Do not mix scores from these policies.
+- **Marker stripping:** legacy prefix mode discards everything after the first literal marker. The new remove mode retains answers on both sides. Metrics can differ even on known-only items.
 - **Hypotheses:** resource rank is a configured assumption. Reported differences and supported fields do not include confidence intervals or significance tests.
 
 See the [main README](../README.md) for implementation details. Corrected metrics should be generated and labeled separately after validation, preserving the provenance of these historical files.

@@ -11,8 +11,11 @@ from __future__ import annotations
 import argparse
 import json
 import random
+import re
 from pathlib import Path
 from typing import Any
+
+from evaluation import read_records, validate_parallel, unknown_label
 
 LANGS_DEFAULT = ["en", "ja", "bn"]
 POSITIONS_DEFAULT = ["start", "middle", "end"]
@@ -23,16 +26,7 @@ UNKNOWN_TOKENS = {"unknown", "不明", "অজানা"}
 
 
 def read_jsonl(path: Path) -> list[dict[str, Any]]:
-    rows: list[dict[str, Any]] = []
-    with path.open("r", encoding="utf-8") as f:
-        for line_no, line in enumerate(f, start=1):
-            line = line.strip()
-            if not line:
-                continue
-            obj = json.loads(line)
-            obj.setdefault("_line_no", line_no)
-            rows.append(obj)
-    return rows
+    return read_records(path, ("context", "question", "ideal"))
 
 
 def norm(s: str) -> str:
@@ -40,7 +34,7 @@ def norm(s: str) -> str:
 
 
 def is_unknown(ideal: str) -> bool:
-    return norm(ideal) in {norm(x) for x in UNKNOWN_TOKENS}
+    return unknown_label(ideal)
 
 
 def build_injection(lang: str, marker: str) -> str:
@@ -106,10 +100,25 @@ def build_system_prompt(lang: str, defense: bool) -> str:
     return base + ("\n" + security_line[lang] if defense else "")
 
 
-def insert_injection(context: str, position: str, injection_text: str) -> str:
+def insert_injection(context: str, position: str, injection_text: str, placement: str = "inside") -> str:
     header = "--- EMAIL START ---"
     footer = "--- EMAIL END ---"
     context = context or ""
+    if placement not in {"inside", "legacy"}:
+        raise ValueError(f"Unsupported placement: {placement}")
+    if placement == "inside":
+        if position == "start":
+            text = f"{injection_text}\n\n{context}"
+        elif position == "end":
+            text = f"{context}\n\n{injection_text}"
+        elif position == "middle":
+            midpoint = len(context) // 2
+            boundaries = [m.end() for m in re.finditer(r"\s+", context) if m.end() < len(context)]
+            mid = min(boundaries, key=lambda x: abs(x - midpoint)) if boundaries else midpoint
+            text = f"{context[:mid]}\n\n{injection_text}\n\n{context[mid:]}"
+        else:
+            raise ValueError(f"Unsupported position: {position}")
+        return f"{header}\n{text}\n{footer}\n"
     if position == "start":
         return f"{injection_text}\n\n{header}\n{context}\n{footer}\n"
     if position == "end":
@@ -148,16 +157,28 @@ def main() -> None:
     p.add_argument("--seed", type=int, default=42)
     p.add_argument("--defense", action="store_true", help="append a simple security-policy line to the system prompt")
     p.add_argument("--marker", type=str, default=FULL_MARKER)
+    p.add_argument("--placement", choices=["inside", "legacy"], default="inside")
+    p.add_argument("--no-injection", action="store_true", help="Generate matched clean controls with the same template and condition IDs")
     args = p.parse_args()
 
     paths = {"en": args.en, "ja": args.ja, "bn": args.bn}
     langs = parse_lang_list(args.langs)
     positions = parse_lang_list(args.positions)
 
-    data = {lang: read_jsonl(paths[lang]) for lang in langs}
+    if not langs or len(langs) != len(set(langs)) or not set(langs) <= set(paths):
+        p.error("--langs must be a nonempty, unique subset of en,ja,bn")
+    if not positions or len(positions) != len(set(positions)) or not set(positions) <= set(POSITIONS_DEFAULT):
+        p.error("--positions must be a nonempty, unique subset of start,middle,end")
+    if args.num_emails is not None and args.num_emails <= 0:
+        p.error("--num-emails must be positive")
+    if not args.marker.strip():
+        p.error("--marker must not be empty")
+    if args.output.resolve() in {path.resolve() for path in paths.values()}:
+        p.error("Output must not overwrite an input file")
+    # Always load English because known-only filtering uses the English reference.
+    data = {lang: read_jsonl(paths[lang]) for lang in dict.fromkeys(["en"] + langs)}
+    validate_parallel(data)
     lengths = {lang: len(rows) for lang, rows in data.items()}
-    if len(set(lengths.values())) != 1:
-        raise ValueError(f"parallel files have different lengths: {lengths}")
 
     indices = list(range(next(iter(lengths.values()))))
     if args.known_only:
@@ -167,6 +188,9 @@ def main() -> None:
         random.seed(args.seed)
         indices = sorted(random.sample(indices, args.num_emails))
 
+    if not indices:
+        p.error("No items remain after filtering")
+
     injections = {lang: build_injection(lang, args.marker) for lang in langs}
     expected = len(indices) * len(langs) * len(langs) * len(langs) * len(positions)
 
@@ -174,7 +198,7 @@ def main() -> None:
     n = 0
     with args.output.open("w", encoding="utf-8") as out:
         for email_id in indices:
-            recs = {lang: data[lang][email_id] for lang in langs}
+            recs = {lang: data[lang][email_id] for lang in data}
             en_ideal = str(recs["en"].get("ideal", "")) if "en" in recs else ""
             for context_lang in langs:
                 context = str(recs[context_lang].get("context", ""))
@@ -185,7 +209,8 @@ def main() -> None:
                     for injection_lang in langs:
                         inj = injections[injection_lang]
                         for position in positions:
-                            body = insert_injection(context, position, inj)
+                            body = (f"--- EMAIL START ---\n{context}\n--- EMAIL END ---\n"
+                                    if args.no_injection else insert_injection(context, position, inj, args.placement))
                             user = build_user_prompt(body, question, qa_lang)
                             obj = {
                                 "id": n,
@@ -203,7 +228,10 @@ def main() -> None:
                                 "orig_ideal_en": en_ideal,
                                 "success_marker": args.marker,
                                 "success_marker_short": SHORT_MARKER,
-                                "is_injection": True,
+                                "is_injection": not args.no_injection,
+                                "placement": args.placement,
+                                "experiment_version": "emailqa-v2" if args.placement == "inside" else "legacy-boundaries",
+                                "known_only": bool(args.known_only),
                             }
                             out.write(json.dumps(obj, ensure_ascii=False) + "\n")
                             n += 1

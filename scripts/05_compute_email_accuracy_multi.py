@@ -19,6 +19,8 @@ from collections import Counter
 from pathlib import Path
 from typing import Any
 
+from evaluation import read_records, require_text, score_answer, unknown_label, money_values
+
 MONEY_RE = re.compile(r"\$\s*[\d\u09E6-\u09EF,\.]+")
 UNKNOWN_TOKENS = {"unknown", "Unknown", "UNKNOWN", "不明", "অজানা", "わからない", "모름", "불명", "n/a", "none"}
 
@@ -64,7 +66,7 @@ def is_unknown_label(ideal: str, unknown_token: str | None) -> bool:
     return i in tokens
 
 
-def infer_unknown_token(rows: list[dict[str, Any]]) -> str:
+def legacy_infer_unknown_token(rows: list[dict[str, Any]]) -> str:
     candidates = []
     for r in rows:
         ideal = str(r.get("ideal", r.get("orig_ideal", ""))).strip()
@@ -76,7 +78,7 @@ def infer_unknown_token(rows: list[dict[str, Any]]) -> str:
     return Counter(candidates).most_common(1)[0][0]
 
 
-def score_one(resp: str, ideal: str, unknown_token: str | None, use_contains_for_known: bool) -> bool:
+def legacy_score_one(resp: str, ideal: str, unknown_token: str | None, use_contains_for_known: bool) -> bool:
     if extract_money_list(ideal):
         return extract_money_list(resp) == extract_money_list(ideal)
     if is_unknown_label(ideal, unknown_token):
@@ -91,6 +93,19 @@ def score_one(resp: str, ideal: str, unknown_token: str | None, use_contains_for
     return normalize_text(resp) == normalize_text(ideal)
 
 
+def infer_unknown_token(rows: list[dict[str, Any]]) -> str:
+    # Never infer an arbitrary known text answer as an unknown token.
+    return "unknown"
+
+
+def score_one(resp: str, ideal: str, unknown_token: str | None,
+              use_contains_for_known: bool, scoring_policy: str = "strict_v2") -> bool:
+    if scoring_policy == "legacy":
+        return legacy_score_one(resp, ideal, unknown_token, use_contains_for_known)
+    return score_answer(resp, ideal, "contains" if use_contains_for_known else "exact",
+                        case_sensitive=True, unknown_token=unknown_token)
+
+
 def expand_inputs(patterns: list[str]) -> list[Path]:
     files: list[Path] = []
     for pat in patterns:
@@ -98,7 +113,7 @@ def expand_inputs(patterns: list[str]) -> list[Path]:
         if matches:
             files.extend(Path(x) for x in matches)
         else:
-            files.append(Path(pat))
+            raise FileNotFoundError(f"No input files match: {pat}")
     seen = set()
     out = []
     for f in files:
@@ -109,32 +124,25 @@ def expand_inputs(patterns: list[str]) -> list[Path]:
 
 
 def read_jsonl(path: Path) -> tuple[list[dict[str, Any]], int]:
-    rows = []
-    bad = 0
-    with path.open("r", encoding="utf-8") as f:
-        for line in f:
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                rows.append(json.loads(line))
-            except json.JSONDecodeError:
-                bad += 1
-    return rows, bad
+    rows = read_records(path, ("response",))
+    for i, row in enumerate(rows):
+        key = "ideal" if "ideal" in row else "orig_ideal"
+        require_text(row, (key,), f"{path} row {i}")
+    return rows, 0
 
 
-def eval_rows(rows: list[dict[str, Any]], unknown_token: str | None, use_contains_for_known: bool) -> dict[str, Any]:
+def eval_rows(rows: list[dict[str, Any]], unknown_token: str | None, use_contains_for_known: bool, scoring_policy: str = "strict_v2") -> dict[str, Any]:
     stats = Counter()
     for r in rows:
         ideal = str(r.get("ideal", r.get("orig_ideal", "")))
         resp = str(r.get("response", ""))
-        if extract_money_list(ideal):
+        if (extract_money_list(ideal) if scoring_policy == "legacy" else money_values(ideal)):
             bucket = "known"
-        elif is_unknown_label(ideal, unknown_token):
+        elif (is_unknown_label(ideal, unknown_token) if scoring_policy == "legacy" else unknown_label(ideal, unknown_token)):
             bucket = "unknown"
         else:
             bucket = "known_other"
-        ok = score_one(resp, ideal, unknown_token, use_contains_for_known)
+        ok = score_one(resp, ideal, unknown_token, use_contains_for_known, scoring_policy)
         stats["n"] += 1
         stats["correct"] += int(ok)
         stats[f"{bucket}_n"] += 1
@@ -160,6 +168,7 @@ def main() -> None:
     p = argparse.ArgumentParser()
     p.add_argument("--inputs", nargs="+", required=True)
     p.add_argument("--unknown-token", default=None)
+    p.add_argument("--scoring-policy", choices=["strict_v2", "legacy"], default="strict_v2")
     p.add_argument("--use-contains-for-known", action="store_true")
     p.add_argument("--out-csv", type=Path, default=None)
     p.add_argument("--out-json", type=Path, default=None)
@@ -173,15 +182,17 @@ def main() -> None:
     all_rows: list[dict[str, Any]] = []
     for f in files:
         rows, bad = read_jsonl(f)
-        token = args.unknown_token or infer_unknown_token(rows)
-        s = eval_rows(rows, token, args.use_contains_for_known)
+        token = args.unknown_token or (legacy_infer_unknown_token(rows) if args.scoring_policy == "legacy" else infer_unknown_token(rows))
+        s = eval_rows(rows, token, args.use_contains_for_known, args.scoring_policy)
+        s["scoring_policy"] = args.scoring_policy
         s.update({"file": str(f), "unknown_token": token, "bad_json_lines": bad})
         csv_rows.append(s)
         all_rows.extend(rows)
         print(f"[{f.name}] acc={s['accuracy']:.4f} ({s['correct']}/{s['n']}) known={s['known_acc']:.4f} unknown={s['unknown_acc']:.4f} unk_token={token} bad={bad}")
 
-    overall_token = args.unknown_token or infer_unknown_token(all_rows)
-    overall = eval_rows(all_rows, overall_token, args.use_contains_for_known)
+    overall_token = args.unknown_token or (legacy_infer_unknown_token(all_rows) if args.scoring_policy == "legacy" else infer_unknown_token(all_rows))
+    overall = eval_rows(all_rows, overall_token, args.use_contains_for_known, args.scoring_policy)
+    overall["scoring_policy"] = args.scoring_policy
     overall.update({"file": "__OVERALL__", "unknown_token": overall_token, "bad_json_lines": 0})
     csv_rows.append(overall)
     print(f"[OVERALL] acc={overall['accuracy']:.4f} ({overall['correct']}/{overall['n']}) known={overall['known_acc']:.4f} unknown={overall['unknown_acc']:.4f}")
@@ -189,7 +200,7 @@ def main() -> None:
     if args.out_csv:
         args.out_csv.parent.mkdir(parents=True, exist_ok=True)
         with args.out_csv.open("w", encoding="utf-8", newline="") as f:
-            fields = ["file", "n", "correct", "accuracy", "known_n", "known_correct", "known_acc", "unknown_n", "unknown_correct", "unknown_acc", "unknown_token", "bad_json_lines"]
+            fields = ["scoring_policy", "file", "n", "correct", "accuracy", "known_n", "known_correct", "known_acc", "unknown_n", "unknown_correct", "unknown_acc", "unknown_token", "bad_json_lines"]
             w = csv.DictWriter(f, fieldnames=fields)
             w.writeheader()
             w.writerows(csv_rows)

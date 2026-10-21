@@ -16,26 +16,14 @@ from collections import Counter
 from pathlib import Path
 from typing import Any
 
+from evaluation import read_records, validate_parallel, money_values, unknown_label
+
 MONEY_RE = re.compile(r"\$\s*[\d\u09E6-\u09EF,\.]+")
 UNKNOWN_TOKENS = {"unknown", "不明", "অজানা", "unk", "n/a", "none", "모름", "불명"}
 
 
 def read_jsonl(path: Path) -> tuple[list[dict[str, Any]], int]:
-    rows: list[dict[str, Any]] = []
-    bad = 0
-    with path.open("r", encoding="utf-8") as f:
-        for line_no, line in enumerate(f, start=1):
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                obj = json.loads(line)
-            except json.JSONDecodeError:
-                bad += 1
-                continue
-            obj.setdefault("_line_no", line_no)
-            rows.append(obj)
-    return rows, bad
+    return read_records(path, ("context", "question", "ideal")), 0
 
 
 def ascii_digit(ch: str) -> str:
@@ -45,15 +33,8 @@ def ascii_digit(ch: str) -> str:
         return ch
 
 
-def normalize_money(s: str) -> list[str]:
-    out: list[str] = []
-    for m in MONEY_RE.findall(s or ""):
-        x = "".join(ascii_digit(c) for c in m)
-        x = x.replace(" ", "")
-        if not x.startswith("$"):
-            x = "$" + x
-        out.append(x)
-    return out
+def normalize_money(s: str) -> list:
+    return money_values(s)
 
 
 def norm_text(s: str) -> str:
@@ -61,7 +42,7 @@ def norm_text(s: str) -> str:
 
 
 def is_unknown(ideal: str) -> bool:
-    return norm_text(ideal).strip("。.!? ") in {norm_text(x) for x in UNKNOWN_TOKENS}
+    return unknown_label(ideal)
 
 
 def ideal_kind(ideal: str) -> str:
@@ -161,6 +142,8 @@ def main() -> None:
     p.add_argument("--out-json", type=Path, default=None)
     p.add_argument("--max-mismatches", type=int, default=20)
     args = p.parse_args()
+    if args.max_mismatches < 0:
+        p.error("--max-mismatches must be nonnegative")
 
     paths = {"en": args.en, "ja": args.ja, "bn": args.bn}
     data: dict[str, list[dict[str, Any]]] = {}
@@ -200,10 +183,20 @@ def main() -> None:
         else:
             print(f"[OK] en vs {lang}: no money/kind mismatch")
 
+    validation_error = None
+    try:
+        validate_parallel(data)
+    except ValueError as exc:
+        validation_error = str(exc)
+    report["valid"] = validation_error is None
+    report["validation_error"] = validation_error
+
     if args.out_json:
         args.out_json.parent.mkdir(parents=True, exist_ok=True)
         args.out_json.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
         print(f"\nSaved report: {args.out_json}")
+    if validation_error:
+        p.exit(1, f"Validation failed: {validation_error}\n")
 
 
 if __name__ == "__main__":

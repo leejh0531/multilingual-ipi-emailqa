@@ -24,7 +24,7 @@ Each non-empty line must be a JSON object with these fields:
 | question | Question corresponding to that email |
 | ideal | Reference answer, preserving the intended value and known/unknown status |
 
-Row i in all three files must refer to the same source item. The generator aligns files by row order rather than joining them by a stable source ID.
+All three fields must be nonempty strings. Row i in all three files must refer to the same source item. The generator aligns by row order; if any aligned row has an `id`, all corresponding rows must have the same `id`. This checks IDs but does not reorder or translate records.
 
 The documented experiment uses 41 known-answer items. The --known-only option filters using the English reference answer; it does not select a predefined list of 41 items. The resulting count depends on the supplied data.
 
@@ -42,7 +42,7 @@ python scripts/00_validate_parallel_emailqa.py \
 
 The validator inspects JSON parsing, row counts, required fields, answer types, money-answer alignment, and rough character-based language hints.
 
-Inspect the report and console warnings before generation. The script can finish after reporting mismatches; a completed command is not evidence that every check passed. Matching answer amounts or types also does not prove that translated questions and emails are semantically aligned.
+Invalid JSON, missing/non-string/empty fields, unequal row counts, mismatched IDs, money values or known/unknown status stop validation with a nonzero exit status. The generator applies the same checks before writing prompts. Numerically equivalent amounts such as $200 and $200.00 agree. Language hints remain informational; matching amounts, IDs or answer types do not prove semantic translation equivalence.
 
 ## Provenance needed for exact reproduction
 
@@ -61,8 +61,8 @@ Record these for a new experiment. A translation process or human validation ste
 Typical outputs include:
 
 ~~~text
-data/prompts/email_prompts_inj_multilang_3321_defense_off.jsonl
-data/prompts/email_prompts_inj_multilang_3321_defense_on.jsonl
+data/prompts/email_v2_attack_off.jsonl
+data/prompts/email_v2_clean_off.jsonl
 results/responses/*.jsonl
 results/metrics/*.csv
 ~~~
